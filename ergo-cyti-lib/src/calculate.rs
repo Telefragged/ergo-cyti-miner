@@ -114,7 +114,7 @@ pub fn try_calculate_tx(
 
     let guesses = AtomicUsize::new(0);
 
-    let solution = (0_u64..u64::MAX).into_iter().find(|guess| {
+    let solution = (0_u64..=u64::MAX).into_iter().find(|guess| {
         guesses.fetch_add(1, Ordering::Relaxed);
 
         let guess_bytes = guess.to_ne_bytes();
