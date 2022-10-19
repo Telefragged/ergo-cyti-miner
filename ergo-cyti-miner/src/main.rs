@@ -219,7 +219,7 @@ async fn main() {
 
         let creation_height = state_context.headers[1].height;
 
-        let result = try_calculate_tx(request, creation_height, &miner_address).unwrap();
+        let result = try_calculate_tx(request, creation_height, &miner_address, None, None).unwrap();
 
         if let Some(unsigned_tx) = result {
             let solved_tx = wallet

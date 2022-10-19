@@ -60,6 +60,8 @@ pub fn try_calculate_tx(
     request_box: ErgoBox,
     creation_height: u32,
     miner_address: &Address,
+    search_from: Option<u64>,
+    search_to: Option<u64>,
 ) -> Result<Option<TransactionContext<UnsignedTransaction>>, CytiCalculateError> {
     let desired_box_id = request_box
         .additional_registers
@@ -114,7 +116,10 @@ pub fn try_calculate_tx(
 
     let guesses = AtomicUsize::new(0);
 
-    let solution = (0_u64..=u64::MAX).into_iter().find(|guess| {
+    let from = search_from.unwrap_or(0);
+    let to = search_to.unwrap_or(u64::MAX);
+
+    let solution = (from..=to).into_iter().find(|guess| {
         guesses.fetch_add(1, Ordering::Relaxed);
 
         let guess_bytes = guess.to_ne_bytes();
