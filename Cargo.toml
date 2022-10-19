@@ -1,7 +1,8 @@
 [workspace]
 members = [
     "ergo-cyti-miner",
-    "ergo-cyti-lib"
+    "ergo-cyti-lib",
+    "ergo-cyti-wasm"
 ]
 
 [profile.release]

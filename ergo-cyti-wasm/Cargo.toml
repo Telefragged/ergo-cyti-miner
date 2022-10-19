@@ -1,0 +1,19 @@
+[package]
+name = "ergo-cyti-wasm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ergo-cyti-lib = { version = "^0.1.0", path = "../ergo-cyti-lib" }
+ergo-lib-wasm = "0.20"
+
+[dependencies.wasm-bindgen]
+version = "0.2.83"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
