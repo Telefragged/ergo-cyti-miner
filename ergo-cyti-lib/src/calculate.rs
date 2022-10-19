@@ -62,7 +62,7 @@ pub fn try_calculate_tx(
     miner_address: &Address,
     search_from: Option<u64>,
     search_to: Option<u64>,
-) -> Result<Option<TransactionContext<UnsignedTransaction>>, CytiCalculateError> {
+) -> Result<(Option<TransactionContext<UnsignedTransaction>>, u64), CytiCalculateError> {
     let desired_box_id = request_box
         .additional_registers
         .get(NonMandatoryRegisterId::R7)
@@ -119,7 +119,7 @@ pub fn try_calculate_tx(
     let from = search_from.unwrap_or(0);
     let to = search_to.unwrap_or(u64::MAX);
 
-    let solution = (from..=to).into_iter().find(|guess| {
+    let solution = (from..=to).into_iter().enumerate().find(|(_, guess)| {
         guesses.fetch_add(1, Ordering::Relaxed);
 
         let guess_bytes = guess.to_ne_bytes();
@@ -136,7 +136,7 @@ pub fn try_calculate_tx(
     });
 
     match solution {
-        Some(guess) => {
+        Some((idx, guess)) => {
             let guess_bytes = guess.to_ne_bytes().to_vec();
             registers.insert(
                 NonMandatoryRegisterId::R9,
@@ -156,8 +156,8 @@ pub fn try_calculate_tx(
             let transaction_context =
                 TransactionContext::new(transaction, vec![request_box], vec![])?;
 
-            Ok(Some(transaction_context))
+            Ok((Some(transaction_context), idx as u64))
         }
-        None => Ok(None),
+        None => Ok((None, to)),
     }
 }

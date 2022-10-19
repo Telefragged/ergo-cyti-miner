@@ -221,7 +221,7 @@ async fn main() {
 
         let result = try_calculate_tx(request, creation_height, &miner_address, None, None).unwrap();
 
-        if let Some(unsigned_tx) = result {
+        if let Some(unsigned_tx) = result.0 {
             let solved_tx = wallet
                 .sign_transaction(unsigned_tx, &state_context, None)
                 .unwrap();
