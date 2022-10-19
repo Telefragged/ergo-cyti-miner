@@ -464,11 +464,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ergo-cyti-lib"
+version = "0.1.0"
+dependencies = [
+ "bounded-vec",
+ "ergo-lib",
+ "ergotree-ir",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
 name = "ergo-cyti-miner"
 version = "0.1.0"
 dependencies = [
  "base16",
  "bounded-vec",
+ "ergo-cyti-lib",
  "ergo-lib",
  "ergotree-ir",
  "futures",
