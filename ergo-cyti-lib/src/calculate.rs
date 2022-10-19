@@ -21,7 +21,6 @@ use ergotree_ir::{
     mir::constant::{Constant, TryExtractInto},
     serialization::{SigmaSerializable, SigmaSerializationError},
 };
-use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -105,9 +104,9 @@ pub fn try_calculate_tx(
 
     let tx_id_bytes = tx.id().sigma_serialize_bytes()?;
 
-    let tx_bytes = tx.bytes_to_sign()?;
+    let mut tx_bytes = tx.bytes_to_sign()?;
 
-    let output_bytes = output_box.sigma_serialize_bytes()?;
+    let mut output_bytes = output_box.sigma_serialize_bytes()?;
 
     let output_guess_slice_idx = find_pattern_idx(&output_bytes, &marker);
     let output_txid_slice_idx = find_pattern_idx(&output_bytes, &tx_id_bytes);
@@ -115,12 +114,8 @@ pub fn try_calculate_tx(
 
     let guesses = AtomicUsize::new(0);
 
-    let solution = (0_u64..u64::MAX).into_par_iter().find_any(|guess| {
+    let solution = (0_u64..u64::MAX).into_iter().find(|guess| {
         guesses.fetch_add(1, Ordering::Relaxed);
-
-        let mut tx_bytes = tx_bytes.clone();
-
-        let mut output_bytes = output_bytes.clone();
 
         let guess_bytes = guess.to_ne_bytes();
 
