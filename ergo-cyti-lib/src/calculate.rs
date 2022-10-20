@@ -158,6 +158,6 @@ pub fn try_calculate_tx(
 
             Ok((Some(transaction_context), idx as u64))
         }
-        None => Ok((None, to)),
+        None => Ok((None, from.abs_diff(to))),
     }
 }
