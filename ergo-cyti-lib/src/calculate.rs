@@ -125,22 +125,24 @@ impl CytiCalculateRequest {
         let mut tx_bytes = self.tx_bytes.clone();
         let mut output_bytes = self.output_bytes.clone();
 
+        let base_state = blake2b_simd::Params::new().hash_length(32).to_state();
+
         let solution = (from..=to).into_iter().enumerate().find(|(_, guess)| {
             let guess_bytes = guess.to_ne_bytes();
 
             write_to_idx(&mut tx_bytes, &guess_bytes, self.tx_guess_slice_idx);
 
-            let tx_id = blake2b256_hash(&tx_bytes);
+            let tx_id = base_state.clone().update(&tx_bytes).finalize();
             write_to_idx(
                 &mut output_bytes,
-                tx_id.0.as_slice(),
+                tx_id.as_bytes(),
                 self.output_txid_slice_idx,
             );
             write_to_idx(&mut output_bytes, &guess_bytes, self.output_guess_slice_idx);
 
-            let box_id = blake2b256_hash(&output_bytes);
+            let box_id = base_state.clone().update(&output_bytes).finalize();
 
-            box_id.0[0..self.desired_token_id.len()] == self.desired_token_id
+            box_id.as_bytes()[0..self.desired_token_id.len()] == self.desired_token_id
         });
 
         if let Some((idx, _)) = solution {
