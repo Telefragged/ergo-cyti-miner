@@ -1,4 +1,11 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc::{channel, Receiver, SendError, Sender},
+    },
+    thread::spawn,
+};
 
 use ergo_lib::{
     chain::{ergo_state_context::ErgoStateContext, transaction::Transaction},
@@ -15,10 +22,11 @@ use ergotree_ir::{
     serialization::SigmaSerializable,
 };
 
-use ergo_cyti_lib::{calculate::try_calculate_tx, mint::create_token_mint_tx};
+use ergo_cyti_lib::{calculate::CytiCalculateRequest, mint::create_token_mint_tx};
 
 use futures::future;
 use log::{error, info};
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -161,9 +169,42 @@ async fn send_transaction(
         .await
 }
 
+const SEARCH_STEP: usize = 1024;
+
+fn calculate_loop(
+    work_queue: Receiver<(CytiCalculateRequest, usize, usize)>,
+    reply_queue: Sender<(Vec<u8>, f64)>,
+) {
+    while let Ok((request, from, to)) = work_queue.recv() {
+        let num_guesses = AtomicU64::new(0);
+        let now = std::time::Instant::now();
+        let bytes = (from..to)
+            .into_par_iter()
+            .step_by(SEARCH_STEP)
+            .find_map_any(|guess| {
+                let (solution, guesses) =
+                    request.calculate_range(guess as u64, (guess + SEARCH_STEP - 1) as u64);
+                num_guesses.fetch_add(guesses, Ordering::Relaxed);
+                solution
+            });
+        let hash_rate = num_guesses.load(Ordering::Relaxed) as f64 / now.elapsed().as_secs_f64();
+        if let Some(bytes) = bytes {
+            if let Err(SendError(_)) = reply_queue.send((bytes, hash_rate)) {
+                break;
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init_timed();
+
+    let (send_work, recv_work) = channel();
+
+    let (send_solved, recv_solved) = channel();
+
+    let _ = spawn(|| calculate_loop(recv_work, send_solved));
 
     let miner_address = AddressEncoder::new(NetworkPrefix::Mainnet)
         .parse_address_from_str(MINER_ADDRESS)
@@ -216,12 +257,15 @@ async fn main() {
 
         let creation_height = state_context.headers[1].height;
 
-        let result = try_calculate_tx(request, creation_height, &miner_address, None, None).unwrap();
+        let request = CytiCalculateRequest::new(&request, creation_height, &miner_address).unwrap();
 
-        if let Some(unsigned_tx) = result.0 {
-            let solved_tx = wallet
-                .sign_transaction(unsigned_tx, &state_context, None)
-                .unwrap();
+        send_work.send((request, 0, u64::MAX as usize)).unwrap();
+
+        let solved_tx = Some(recv_solved.recv().unwrap());
+
+        if let Some((solved_tx, guess_rate)) = solved_tx {
+            info!("Hashrate: {:.3}", guess_rate);
+            let solved_tx = Transaction::sigma_parse_bytes(&solved_tx).unwrap();
 
             let solved_box = &solved_tx.outputs[0];
 
