@@ -231,33 +231,30 @@ async fn main() {
 
     unsolved_requests.sort_by_key(|eb| std::cmp::Reverse(calculate_request_weight(eb)));
 
-    if let Some(request) = unsolved_requests.into_iter().next() {
-        info!("New request: {:?}", request.box_id());
-        let request_id = request
-            .additional_registers
-            .get(NonMandatoryRegisterId::R7)
-            .and_then(|c| c.clone().try_extract_into::<Vec<u8>>().ok())
-            .unwrap();
+    if let Some(request_box) = unsolved_requests.into_iter().next() {
+        info!("New request: {:?}", request_box.box_id());
+
+        let state_context = get_current_state_context(&client).await.unwrap();
+
+        let creation_height = state_context.headers[1].height;
+
+        let request = CytiCalculateRequest::new(&request_box, creation_height, &miner_address).unwrap();
+
+        let request_id = request.desired_token_id.clone();
 
         let difficulty = 256_u64.pow(request_id.len() as u32);
 
         let request_hex: String = request_id.into_iter().map(|c| format!("{c:02x}")).collect();
 
-        let request_value = *request.value.as_u64();
+        let request_value = *request_box.value.as_u64();
 
         info!(
             "Request: {}, value: {}, difficulty: {}, Weight: {}",
             request_hex,
             request_value,
             difficulty,
-            calculate_request_weight(&request)
+            calculate_request_weight(&request_box)
         );
-
-        let state_context = get_current_state_context(&client).await.unwrap();
-
-        let creation_height = state_context.headers[1].height;
-
-        let request = CytiCalculateRequest::new(&request, creation_height, &miner_address).unwrap();
 
         send_work.send((request, 0, u64::MAX as usize)).unwrap();
 
