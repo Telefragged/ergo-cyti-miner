@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{constants::TX_FEE, tx::create_fee_candidate};
+use blake2b_simd::many::{HashManyJob, hash_many};
 use bounded_vec::BoundedVecOutOfBounds;
 use ergo_lib::{
     chain::transaction::{unsigned::UnsignedTransaction, UnsignedInput},
@@ -122,34 +123,51 @@ impl CytiCalculateRequest {
     }
 
     pub fn calculate_range(&self, from: u64, to: u64) -> (Option<Vec<u8>>, u64) {
-        let mut tx_bytes = self.tx_bytes.clone();
-        let mut output_bytes = self.output_bytes.clone();
+        let mut params = blake2b_simd::Params::new();
+        params.hash_length(32);
 
-        let base_state = blake2b_simd::Params::new().hash_length(32).to_state();
+        let tx_bytes: Vec<_> = (from..=to)
+            .map(|guess| {
+                let guess_bytes = guess.to_ne_bytes();
+                let mut tx_bytes = self.tx_bytes.clone();
+                write_to_idx(&mut tx_bytes, &guess_bytes, self.tx_guess_slice_idx);
+                tx_bytes
+            })
+            .collect();
 
-        let solution = (from..=to).into_iter().enumerate().find(|(_, guess)| {
+        let mut tx_jobs: Vec<_> = tx_bytes
+            .iter()
+            .map(|bytes| HashManyJob::new(&params, bytes))
+            .collect();
+
+        hash_many(tx_jobs.iter_mut());
+
+        let output_bytes: Vec<_> = (from..=to).zip(tx_jobs.into_iter().map(|job| job.to_hash())).map(|(guess, tx_id)| {
             let guess_bytes = guess.to_ne_bytes();
-
-            write_to_idx(&mut tx_bytes, &guess_bytes, self.tx_guess_slice_idx);
-
-            let tx_id = base_state.clone().update(&tx_bytes).finalize();
+            let mut output_bytes = self.output_bytes.clone();
             write_to_idx(
                 &mut output_bytes,
                 tx_id.as_bytes(),
                 self.output_txid_slice_idx,
             );
             write_to_idx(&mut output_bytes, &guess_bytes, self.output_guess_slice_idx);
+            output_bytes
+        }).collect();
 
-            let box_id = base_state.clone().update(&output_bytes).finalize();
+        let mut output_jobs: Vec<_> = output_bytes.iter().map(|bytes| HashManyJob::new(&params, bytes)).collect();
 
-            box_id.as_bytes()[0..self.desired_token_id.len()] == self.desired_token_id
+        hash_many(output_jobs.iter_mut());
+
+        let solution = output_jobs.into_iter().enumerate().find_map(|(idx, job)| {
+            let box_id = job.to_hash();
+            if box_id.as_bytes()[0..self.desired_token_id.len()] == self.desired_token_id {
+                Some(tx_bytes[idx].clone())
+            } else {
+                None
+            }
         });
 
-        if let Some((idx, _)) = solution {
-            (Some(tx_bytes), idx as u64)
-        } else {
-            (None, to.abs_diff(from))
-        }
+        (solution, from.abs_diff(to))
     }
 }
 

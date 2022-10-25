@@ -169,7 +169,7 @@ async fn send_transaction(
         .await
 }
 
-const SEARCH_STEP: usize = 1024;
+const SEARCH_STEP: usize = 64;
 
 fn calculate_loop(
     work_queue: Receiver<(CytiCalculateRequest, usize, usize)>,
