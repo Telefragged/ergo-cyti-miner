@@ -35,7 +35,7 @@ pub struct UtxoResponse {
 }
 
 async fn get_current_state_context(client: &Client) -> Result<ErgoStateContext, reqwest::Error> {
-    let url = format!("{}/blocks/lastHeaders/{}", NODE_ADDRESS, 10);
+    let url = format!("{NODE_ADDRESS}/blocks/lastHeaders/10");
 
     let mut last_headers = client
         .get(url)
@@ -150,7 +150,7 @@ async fn send_transaction(
     client: &Client,
     transaction: &Transaction,
 ) -> Result<ApiResponse<String>, reqwest::Error> {
-    let url = format!("{}/transactions", NODE_ADDRESS);
+    let url = format!("{NODE_ADDRESS}/transactions");
 
     client
         .post(&url)
@@ -200,10 +200,7 @@ async fn main() {
 
         let difficulty = 256_u64.pow(request_id.len() as u32);
 
-        let request_hex: String = request_id
-            .into_iter()
-            .map(|c| format!("{:02x}", c))
-            .collect();
+        let request_hex: String = request_id.into_iter().map(|c| format!("{c:02x}")).collect();
 
         let request_value = *request.value.as_u64();
 
